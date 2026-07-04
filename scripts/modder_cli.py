@@ -31,7 +31,8 @@ MODS = [
     ("laser", "Laser Sight (force laser guides on all weapons)"),
     ("zoom", "Max Zoom (unlock max zoom for all weapons)"),
     ("accuracy", "Perfect Accuracy (zero bullet spread for all weapons)"),
-    ("sniper_accuracy", "Sniper-Only Accuracy (perfect accuracy for sniper rifle only)")
+    ("sniper_accuracy", "Sniper-Only Accuracy (perfect accuracy for sniper rifle only)"),
+    ("shotgun_mod", "Shotgun Customizer (Customize rapid fire delay and pellets count)")
 ]
 
 def get_key():
@@ -146,6 +147,38 @@ def main():
     print(f"  Building modded APK with: {', '.join(active_mods)}")
     print("=" * 65 + "\n")
 
+    rate_idx = "4"
+    pellets_val = "8"
+    if "shotgun_mod" in active_mods:
+        print("\033[1;36m⚙️  Shotgun Customizer Configurations:\033[0m")
+        print("Select Firing Rate Delay:")
+        print("  0: 0.0s (Instant)")
+        print("  1: 0.125s (Super Fast)")
+        print("  2: 0.156s (Very Fast)")
+        print("  3: 0.187s (Fast)")
+        print("  4: 0.25s (Normal)")
+        print("  5: 0.5s (Slow)")
+        print("  6: 1.0s (Very Slow)")
+        print("  7: 2.0s (Super Slow)")
+        try:
+            val = input("Enter index [0-7, default 4]: ").strip()
+            if val:
+                idx = int(val)
+                if 0 <= idx <= 7:
+                    rate_idx = str(idx)
+        except ValueError:
+            pass
+
+        try:
+            val = input("Enter number of pellets per shot [1-100, default 8]: ").strip()
+            if val:
+                p = int(val)
+                if 1 <= p <= 100:
+                    pellets_val = str(p)
+        except ValueError:
+            pass
+        print("")
+
     mods_str = ",".join(active_mods)
     
     # Run Node helper process
@@ -156,7 +189,9 @@ def main():
         f"--output={args.output}",
         f"--workdir={args.workdir}",
         f"--mods={mods_str}",
-        f"--install={args.install}"
+        f"--install={args.install}",
+        f"--shotgun-rate-idx={rate_idx}",
+        f"--shotgun-pellets-val={pellets_val}"
     ]
 
     try:

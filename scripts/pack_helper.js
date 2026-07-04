@@ -156,6 +156,138 @@ async function run(args) {
   const selectedMods = args.mods.split(',').filter(Boolean);
   const shouldInstall = args.install === 'true';
 
+  // Handle shotgun_mod dynamically if selected
+  if (selectedMods.includes('shotgun_mod')) {
+    const rateIdx = parseInt(args['shotgun-rate-idx'] || '4');
+    const pellets = parseInt(args['shotgun-pellets-val'] || '8');
+    const SHOTGUN_RATES = [0.0, 0.125, 0.15625, 0.1875, 0.25, 0.5, 1.0, 2.0];
+    const rateVal = SHOTGUN_RATES[rateIdx];
+
+    // Helper to assemble
+    const assemble = (asm, triple) => {
+      try {
+        const out = execSync(`echo "${asm}" | llvm-mc -triple=${triple} -show-encoding`, { encoding: 'utf8', stderr: 'ignore' });
+        const matches = [...out.matchAll(/encoding: \[(.*?)\\]/g)];
+        const bytes = [];
+        for (const m of matches) {
+          const parts = m[1].split(',').map(x => parseInt(x.trim(), 16));
+          bytes.push(...parts);
+        }
+        return bytes;
+      } catch (err) {
+        console.error(`Assembly failed for "${asm}":`, err.message);
+        return null;
+      }
+    };
+
+    const rateWords = [];
+    const roundsWords = [];
+    for (let id = 0; id <= 13; id++) {
+      if (id === 7) {
+        const buf = new ArrayBuffer(4);
+        new DataView(buf).setFloat32(0, rateVal, true);
+        const hex = new Uint32Array(buf)[0];
+        rateWords.push(`.word 0x${hex.toString(16)}`);
+        roundsWords.push(`.word ${pellets}`);
+      } else {
+        rateWords.push(`.word 0xbf800000`); // -1.0f
+        roundsWords.push(`.word -1`);
+      }
+    }
+
+    // 1. Compile 64-bit Hooks inside WeaponStructures::fourPointRadiusMapTest (offset 0x009ed258)
+    const asm64 = `
+      hook_rate:
+        ldr w8, [x0, #0x338]
+        cmp w8, #13
+        b.hi default_rate
+        adr x9, rate_table
+        ldr s0, [x9, w8, uxtw #2]
+        fcmp s0, #0.0
+        b.mi default_rate
+        ret
+      default_rate:
+        ldr s0, [x0, #0x324]
+        ret
+
+      hook_rounds:
+        ldr w8, [x0, #0x338]
+        cmp w8, #13
+        b.hi default_rounds
+        adr x9, rounds_table
+        ldr w0, [x9, w8, uxtw #2]
+        cmp w0, #0
+        b.le default_rounds
+        ret
+      default_rounds:
+        ldrh w0, [x0, #0x318]
+        ret
+
+      .align 4
+      rate_table:
+        ${rateWords.join('\n')}
+      
+      .align 4
+      rounds_table:
+        ${roundsWords.join('\n')}
+    `;
+
+    const bytes64 = assemble(asm64, 'aarch64-linux-gnu');
+    patches_64.per_gun_hooks = { name: "Per-Gun Hooks", offset: 0x009ed258, bytes: bytes64 };
+    patches_64.per_gun_rate_redirect = { name: "Per-Gun Rate Redirect", offset: 0x00948788, bytes: assemble(`.org 0x948788; b 0x9ed258`, 'aarch64-linux-gnu') };
+    patches_64.per_gun_rounds_redirect = { name: "Per-Gun Rounds Redirect", offset: 0x00948770, bytes: assemble(`.org 0x948770; b 0x9ed280`, 'aarch64-linux-gnu') };
+
+    // 2. Compile 32-bit Hooks inside WeaponStructures::fourPointRadiusMapTest (offset 0x008bfe20)
+    const asm32 = `
+      .arm
+      hook_rate:
+        ldr r1, [r0, #0x2a0]
+        cmp r1, #13
+        bhi default_rate
+        adr r2, rate_table
+        ldr r0, [r2, r1, lsl #2]
+        cmp r0, #0
+        blt default_rate
+        bx lr
+      default_rate:
+        ldr r0, [r0, #656]
+        bx lr
+
+      hook_rounds:
+        ldr r1, [r0, #0x2a0]
+        cmp r1, #13
+        bhi default_rounds
+        adr r2, rounds_table
+        ldr r0, [r2, r1, lsl #2]
+        cmp r0, #0
+        ble default_rounds
+        bx lr
+      default_rounds:
+        add r0, r0, #644
+        ldrh r0, [r0]
+        bx lr
+
+      .align 4
+      rate_table:
+        ${rateWords.join('\n')}
+      
+      .align 4
+      rounds_table:
+        ${roundsWords.join('\n')}
+    `;
+
+    const bytes32 = assemble(asm32, 'armv7-linux-gnueabihf');
+    patches_32.per_gun_hooks = { name: "Per-Gun Hooks", offset: 0x008bfe20, bytes: bytes32 };
+    patches_32.per_gun_rate_redirect = { name: "Per-Gun Rate Redirect", offset: 0x0081331c, bytes: assemble(`.org 0x81331c; b 0x8bfe20`, 'armv7-linux-gnueabihf') };
+    patches_32.per_gun_rounds_redirect = { name: "Per-Gun Rounds Redirect", offset: 0x00813300, bytes: assemble(`.org 0x813300; b 0x8bfe44`, 'armv7-linux-gnueabihf') };
+
+    // Add dynamically compiled patches to selections
+    selectedMods.push('per_gun_hooks', 'per_gun_rate_redirect', 'per_gun_rounds_redirect');
+    // Remove the placeholder mod key so it doesn't get processed by the patchesMap
+    const idx = selectedMods.indexOf('shotgun_mod');
+    if (idx !== -1) selectedMods.splice(idx, 1);
+  }
+
   console.log(`Working Directory: ${workDir}`);
   console.log(`Selected Mods: ${selectedMods.join(', ')}`);
 
