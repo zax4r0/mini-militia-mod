@@ -81,7 +81,9 @@ const patches_32 = {
   speed: { name: "Super Bullet Speed", offset: 0x0081338c, bytes: [0x00, 0x0c, 0x03, 0xe3, 0x1c, 0x06, 0x44, 0xe3, 0x1e, 0xff, 0x2f, 0xe1] },
   respawn: { name: "Instant Respawn", offset: 0x00883b78, bytes: [0x00, 0x00, 0xa0, 0xe3, 0x1e, 0xff, 0x2f, 0xe1] },
   rapid: { name: "Rapid Fire (No Delay)", offset: 0x0081331c, bytes: [0x00, 0x00, 0xa0, 0xe3, 0x1e, 0xff, 0x2f, 0xe1] },
-  laser: { name: "Laser Sight (All Weapons)", offset: 0x0081d720, bytes: [0x01, 0x00, 0xa0, 0xe3, 0x1e, 0xff, 0x2f, 0xe1] }
+  laser: { name: "Laser Sight (All Weapons)", offset: 0x0081d720, bytes: [0x01, 0x00, 0xa0, 0xe3, 0x1e, 0xff, 0x2f, 0xe1] },
+  zoom: { name: "Max Zoom (All Weapons)", offset: 0x008132ac, bytes: [0x00, 0x00, 0xe0, 0xe3, 0x1e, 0xff, 0x2f, 0xe1] },
+  accuracy: { name: "Perfect Accuracy (All Weapons)", offset: 0x0081335c, bytes: [0x00, 0x00, 0xa0, 0xe3, 0x1e, 0xff, 0x2f, 0xe1] }
 };
 
 // 64-bit patches (file: split_config.arm64_v8a.apk -> lib/arm64-v8a/libcocos2dcpp.so)
@@ -120,7 +122,9 @@ const patches_64 = {
   speed: { name: "Super Bullet Speed", offset: 0x009487f0, bytes: [0xe0, 0xe1, 0x84, 0x52, 0x00, 0x00, 0x22, 0x1e, 0xc0, 0x03, 0x5f, 0xd6] },
   respawn: { name: "Instant Respawn", offset: 0x009b38e8, bytes: [0x00, 0x00, 0x80, 0x52, 0xc0, 0x03, 0x5f, 0xd6] },
   rapid: { name: "Rapid Fire (No Delay)", offset: 0x00948788, bytes: [0xe0, 0x03, 0x27, 0x1e, 0xc0, 0x03, 0x5f, 0xd6] },
-  laser: { name: "Laser Sight (All Weapons)", offset: 0x00952140, bytes: [0x20, 0x00, 0x80, 0x52, 0xc0, 0x03, 0x5f, 0xd6] }
+  laser: { name: "Laser Sight (All Weapons)", offset: 0x00952140, bytes: [0x20, 0x00, 0x80, 0x52, 0xc0, 0x03, 0x5f, 0xd6] },
+  zoom: { name: "Max Zoom (All Weapons)", offset: 0x00948718, bytes: [0x00, 0x00, 0x80, 0x12, 0xc0, 0x03, 0x5f, 0xd6] },
+  accuracy: { name: "Perfect Accuracy (All Weapons)", offset: 0x009487c0, bytes: [0xe0, 0x03, 0x27, 0x1e, 0xc0, 0x03, 0x5f, 0xd6] }
 };
 
 async function patchSoBuffer(soData, patchesToApply, patchesMap) {
@@ -228,13 +232,13 @@ async function run(args) {
   console.log('5. Generating keystore and signing APKs...');
   const keystorePath = path.join(workDir, 'temp.keystore');
   const keytoolCmd = `"${path.join(JAVA_BIN, 'keytool')}" -genkeypair -v -keystore "${keystorePath}" -alias modkey -keyalg RSA -keysize 2048 -validity 10000 -storepass password -keypass password -dname "CN=Mini Militia Mod, O=Modding Co, C=US"`;
-  execSync(keytoolCmd, { stdio: 'ignore' });
+  execSync(keytoolCmd, { stdio: 'inherit' });
 
   const env = { ...process.env, PATH: `${JAVA_BIN}:${process.env.PATH}` };
   for (const filename of targetApks) {
     const apkPath = path.join(workDir, filename);
     const apksignerCmd = `"${APKSIGNER}" sign --ks "${keystorePath}" --ks-pass pass:password --key-pass pass:password "${apkPath}"`;
-    execSync(apksignerCmd, { env, stdio: 'ignore' });
+    execSync(apksignerCmd, { env, stdio: 'inherit' });
   }
   console.log('  APKs signed successfully (v2/v3 scheme).');
 
