@@ -1,45 +1,80 @@
 #!/usr/bin/env python3
 import os
 import sys
+import tty
+import termios
 import subprocess
 import argparse
 
 # Path config
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-REPO_DIR = os.path.dirname(SCRIPT_DIR)
 PACK_HELPER_JS = os.path.join(SCRIPT_DIR, "pack_helper.js")
 
-# List of available mods
-MODS = {
-    "ammo": "Unlimited Ammo (disable ammo & grenade subtraction)",
-    "flight": "Unlimited Jetpack Flight / Power",
-    "health": "Unlimited Health (God Mode - 100% HP)",
-    "pro": "Pro Pack Unlocked",
-    "reload": "No Reload time for all weapons",
-    "multishot": "Shoot 4 bullets at once (multishot)",
-    "dual": "Dual-Wield any heavy/primary weapon",
-    "shop": "Unlock all shop items"
-}
+# List of available mods (ordered list for indexing)
+MODS = [
+    ("ammo", "Unlimited Ammo (disable ammo & grenade subtraction)"),
+    ("flight", "Unlimited Jetpack Flight / Power"),
+    ("health", "Unlimited Health (God Mode - 100% HP)"),
+    ("pro", "Pro Pack Unlocked"),
+    ("reload", "No Reload time for all weapons"),
+    ("multishot", "Shoot 4 bullets at once (multishot)"),
+    ("dual", "Dual-Wield any heavy/primary weapon"),
+    ("shop", "Unlock all shop items")
+]
 
-def print_banner():
-    print("=" * 60)
-    print("      💣 MINI MILITIA CLASSIC INTERACTIVE MODDER 💣      ")
-    print("=" * 60)
+def get_key():
+    """Reads a single keypress, handles escape sequences for arrow keys."""
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setraw(sys.stdin.fileno())
+        ch = sys.stdin.read(1)
+        if ch == '\x1b':
+            ch2 = sys.stdin.read(1)
+            if ch2 == '[':
+                ch3 = sys.stdin.read(1)
+                if ch3 == 'A': return 'up'
+                if ch3 == 'B': return 'down'
+                if ch3 == 'C': return 'right'
+                if ch3 == 'D': return 'left'
+        elif ch in ['\r', '\n']:
+            return 'enter'
+        elif ch == ' ':
+            return 'space'
+        elif ch in ['q', 'Q', '\x03']: # q, Q or Ctrl+C
+            return 'quit'
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+    return ch
 
-def show_menu(selected):
-    print("\nSelect the mods you want to apply to the build:")
-    for key, name in MODS.items():
-        status = "[X]" if key in selected else "[ ]"
-        print(f"  {status} {key:<12} - {name}")
-    print("\nCommands:")
-    print("  Type a mod ID (e.g. 'ammo') to toggle it.")
-    print("  Type 'all' to select all mods.")
-    print("  Type 'clear' to deselect all mods.")
-    print("  Type 'done' or press Enter to compile and build.")
-    print("  Type 'exit' to quit.")
+def render(selected_idx, active_mods):
+    """Renders the interactive menu using ANSI escape sequences."""
+    # Move cursor to top home position and clear screen
+    sys.stdout.write("\033[H\033[J")
+    
+    print("\033[1;35m" + "=" * 65 + "\033[0m")
+    print("\033[1;32m      💣  MINI MILITIA CLASSIC INTERACTIVE TUI MODDER  💣      \033[0m")
+    print("\033[1;35m" + "=" * 65 + "\033[0m")
+    print("\n \033[1;33mControls:\033[0m Use \033[1;36mUP/DOWN\033[0m arrows, press \033[1;36mSPACE\033[0m to toggle, \033[1;36mENTER\033[0m to build, \033[1;36mQ\033[0m to exit.")
+    print("-" * 65 + "\n")
+    
+    for i, (key, desc) in enumerate(MODS):
+        is_hover = (i == selected_idx)
+        is_active = (key in active_mods)
+        
+        marker = "\033[1;36m▶\033[0m " if is_hover else "  "
+        checkbox = "\033[1;32m[X]\033[0m" if is_active else "[ ]"
+        
+        if is_hover:
+            # Highlight hovered item with cyan background/text
+            print(f"{marker}{checkbox} \033[1;36;40m{key:<12} - {desc}\033[0m")
+        else:
+            print(f"{marker}{checkbox} {key:<12} - {desc}")
+            
+    print("\n\033[1;35m" + "=" * 65 + "\033[0m")
 
 def main():
-    parser = argparse.ArgumentParser(description="Mini Militia Modder CLI")
+    parser = argparse.ArgumentParser(description="Mini Militia Modder TUI")
     parser.add_argument("--apkm", default="/home/zax4r0/Templates/com.appsomniacs.mmc_0.14.4-88_2arch_7dpi_30lang_9e191f730dbf21afbef2b87a6fae5279_apkmirror.com.apkm", help="Path to original APKM file")
     parser.add_argument("--output", default="/home/zax4r0/Templates/mini-militia-modded.apks", help="Output path for the compiled APKS file")
     parser.add_argument("--workdir", default="/home/zax4r0/Templates/mod_workspace", help="Temporary workspace path")
@@ -50,38 +85,57 @@ def main():
         print(f"Error: Original APKM file not found at {args.apkm}")
         sys.exit(1)
 
-    print_banner()
+    selected_idx = 0
+    active_mods = set()
 
-    selected_mods = set()
-    while True:
-        show_menu(selected_mods)
-        choice = input("\nChoose an option: ").strip().lower()
+    # Enter interactive TUI loop
+    try:
+        # Hide cursor
+        sys.stdout.write("\033[?25l")
+        sys.stdout.flush()
 
-        if choice == "exit":
-            print("Exiting...")
-            sys.exit(0)
-        elif choice in ["done", ""]:
-            if not selected_mods:
-                print("No mods selected. Please select at least one mod.")
-                continue
-            break
-        elif choice == "all":
-            selected_mods = set(MODS.keys())
-        elif choice == "clear":
-            selected_mods.clear()
-        elif choice in MODS:
-            if choice in selected_mods:
-                selected_mods.remove(choice)
-            else:
-                selected_mods.add(choice)
-        else:
-            print("Invalid option, try again.")
+        while True:
+            render(selected_idx, active_mods)
+            key = get_key()
 
-    mods_str = ",".join(selected_mods)
-    print("\n" + "=" * 60)
-    print(f"Building modded APK with: {', '.join(selected_mods)}")
-    print("=" * 60 + "\n")
+            if key == 'up':
+                selected_idx = (selected_idx - 1) % len(MODS)
+            elif key == 'down':
+                selected_idx = (selected_idx + 1) % len(MODS)
+            elif key == 'space':
+                mod_key = MODS[selected_idx][0]
+                if mod_key in active_mods:
+                    active_mods.remove(mod_key)
+                else:
+                    active_mods.add(mod_key)
+            elif key == 'enter':
+                if not active_mods:
+                    # Temporary cursor show to print error
+                    sys.stdout.write("\033[?25h\n\033[1;31mError: Please select at least one mod before compiling.\033[0m\n")
+                    sys.stdout.flush()
+                    input("Press Enter to continue...")
+                    sys.stdout.write("\033[?25l")
+                    sys.stdout.flush()
+                    continue
+                break
+            elif key == 'quit':
+                # Restore cursor and exit
+                sys.stdout.write("\033[?25h\n")
+                sys.stdout.flush()
+                print("Exiting...")
+                sys.exit(0)
+    finally:
+        # Ensure cursor is always restored
+        sys.stdout.write("\033[?25h")
+        sys.stdout.flush()
 
+    # Move cursor down to prevent overwriting TUI
+    print("\n" + "=" * 65)
+    print(f"  Building modded APK with: {', '.join(active_mods)}")
+    print("=" * 65 + "\n")
+
+    mods_str = ",".join(active_mods)
+    
     # Run Node helper process
     cmd = [
         "node",
