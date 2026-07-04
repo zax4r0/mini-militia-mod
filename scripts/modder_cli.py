@@ -25,7 +25,10 @@ MODS = [
     ("damage", "One-Shot Kill (massive weapon damage)"),
     ("melee", "One-Punch Kill (massive punch/saw damage)"),
     ("range", "Infinite Range (bullets travel infinitely)"),
-    ("speed", "Super Bullet Speed (instant bullet hit)")
+    ("speed", "Super Bullet Speed (instant bullet hit)"),
+    ("respawn", "Instant Respawn (no respawn delay after death)"),
+    ("rapid", "Rapid Fire (maximum fire rate for all guns)"),
+    ("laser", "Laser Sight (force laser guides on all weapons)")
 ]
 
 def get_key():
