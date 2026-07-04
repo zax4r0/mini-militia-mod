@@ -19,7 +19,13 @@ MODS = [
     ("reload", "No Reload time for all weapons"),
     ("multishot", "Shoot 4 bullets at once (multishot)"),
     ("dual", "Dual-Wield any heavy/primary weapon"),
-    ("shop", "Unlock all shop items")
+    ("shop", "Unlock all shop items"),
+    ("recoil", "No Recoil (disable gun kickback)"),
+    ("gravity", "Zero Gravity (float around the map)"),
+    ("damage", "One-Shot Kill (massive weapon damage)"),
+    ("melee", "One-Punch Kill (massive punch/saw damage)"),
+    ("range", "Infinite Range (bullets travel infinitely)"),
+    ("speed", "Super Bullet Speed (instant bullet hit)")
 ]
 
 def get_key():
