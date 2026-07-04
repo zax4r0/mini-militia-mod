@@ -30,7 +30,7 @@ MODS = [
     ("rapid", "Rapid Fire (maximum fire rate for all guns)"),
     ("laser", "Laser Sight (force laser guides on all weapons)"),
     ("zoom", "Max Zoom (unlock max zoom for all weapons)"),
-    ("accuracy", "Perfect Accuracy (zero bullet spread for all weapons)")
+    ("accuracy", "Sniper-Only Accuracy (perfect accuracy for sniper rifle only)")
 ]
 
 def get_key():
